@@ -9,15 +9,16 @@ import (
 	"os"
 	"time"
 
+	"golang.org/x/exp/io/i2c"
+
 	"github.com/avast/retry-go"
 	"github.com/influxdata/influxdb-client-go/v2"
-	"gobot.io/x/gobot"
-	"gobot.io/x/gobot/drivers/i2c"
-	"gobot.io/x/gobot/platforms/raspi"
+	"github.com/quhar/bme280"
 )
 
 const (
-	sampleInterval = 1 * time.Minute
+	defaultSampleInterval = 1 * time.Minute
+	debugSampleInterval = 10 * time.Second
 	influxTimeout  = 5 * time.Second
 	influxAttempts = 3
 )
@@ -85,6 +86,7 @@ func main() {
 	var measurementName = flag.String("measurement-name", "pi_wx", "Value for the measurement name in InfluxDB. Defaults to 'pi_wx'.")
 	var logResults = flag.Bool("log-readings", false, "Log temperature/humidity/pressure readings to standard error.")
 	var elevation = flag.Float64("elevation-meters", 259.08, "Elevation in meters. Required for accurate mean sea level pressure readings. Default is Ann Arbor ;)")
+	var debugFastMode = flag.Bool("fast-sample", false, "Sample at a fast sample rate, for debugging.")
 	flag.Parse()
 	if *influxServer == "" || *influxBucket == "" {
 		fmt.Println("-influx-bucket and -influx-server must be supplied.")
@@ -111,28 +113,36 @@ func main() {
 	}
 	influxWriteApi := influxClient.WriteAPIBlocking("", *influxBucket)
 
-	rpiAdaptor := raspi.NewAdaptor()
-	bme280 := i2c.NewBME280Driver(rpiAdaptor)
+	d, err := i2c.Open(&i2c.Devfs{Dev: "/dev/i2c-1"}, bme280.I2CAddr)
+	if err != nil {
+		log.Fatalf("failed to open I2C device: %s", err)
+	}
 
-	work := func() {
-		gobot.Every(sampleInterval, func() {
-			tempC, err := bme280.Temperature()
+	sensor := bme280.New(d)
+	err = sensor.Init()
+	if err != nil {
+		log.Fatalf("failed to initialize BME280: %s", err)
+	}
+
+	sampleInterval := defaultSampleInterval
+	if *debugFastMode {
+		sampleInterval = debugSampleInterval
+	}
+
+	ticker := time.NewTicker(sampleInterval)
+	for {
+		select {
+		case <-ticker.C:
+			tempC, rawPressureHPa, humidity, err := sensor.EnvData()
 			if err != nil {
-				log.Fatalf("failed to read temperature from BME280: %s", err)
-			}
-			humidity, err := bme280.Humidity()
-			if err != nil {
-				log.Fatalf("failed to read humidity from BME280: %s", err)
-			}
-			rawPressurePa, err := bme280.Pressure()
-			if err != nil {
-				log.Fatalf("failed to read pressure from BME280: %s", err)
+				log.Fatalf("failed to read from BME280: %s", err)
 			}
 
-			tempF := DegreesCToF(float64(tempC))
-			dewPointF := DewPointF(tempF, float64(humidity))
+			rawPressurePa := rawPressureHPa * 100.0
+			tempF := DegreesCToF(tempC)
+			dewPointF := DewPointF(tempF, humidity)
 			indoorHumidityRec := IndoorHumidityRecommendation(tempF)
-			pressure := MSLP(float64(rawPressurePa), *elevation)
+			pressure := MSLP(rawPressurePa, *elevation)
 			pressureMb := PascalsToMillibar(pressure)
 			pressureIn := PascalsToInHg(pressure)
 
@@ -169,15 +179,6 @@ func main() {
 			); err != nil {
 				log.Printf("failed to write point to influx: %v", err)
 			}
-		})
-	}
-
-	robot := gobot.NewRobot("piwxbot",
-		[]gobot.Connection{rpiAdaptor},
-		[]gobot.Device{bme280},
-		work,
-	)
-	if err := robot.Start(); err != nil {
-		log.Fatalf("failed to start: %s", err)
+		}
 	}
 }
