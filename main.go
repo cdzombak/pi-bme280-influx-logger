@@ -133,11 +133,12 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			tempC, rawPressurePa, humidity, err := sensor.EnvData()
+			tempC, rawPressureHPa, humidity, err := sensor.EnvData()
 			if err != nil {
 				log.Fatalf("failed to read from BME280: %s", err)
 			}
 
+			rawPressurePa := rawPressureHPa * 100.0
 			tempF := DegreesCToF(tempC)
 			dewPointF := DewPointF(tempF, humidity)
 			indoorHumidityRec := IndoorHumidityRecommendation(tempF)
