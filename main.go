@@ -115,7 +115,7 @@ func main() {
 
 	d, err := i2c.Open(&i2c.Devfs{Dev: "/dev/i2c-1"}, bme280.I2CAddr)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to open I2C device: %s", err)
 	}
 
 	sensor := bme280.New(d)
