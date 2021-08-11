@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	sampleInterval = 1 * time.Minute
+	// sampleInterval = 1 * time.Minute
+	sampleInterval = 10 * time.Second
 	influxTimeout  = 5 * time.Second
 	influxAttempts = 3
 )
@@ -112,7 +113,7 @@ func main() {
 	influxWriteApi := influxClient.WriteAPIBlocking("", *influxBucket)
 
 	rpiAdaptor := raspi.NewAdaptor()
-	bme280 := i2c.NewBME280Driver(rpiAdaptor)
+	bme280 := i2c.NewBME280Driver(rpiAdaptor, i2c.WithAddress(0x76))
 
 	work := func() {
 		gobot.Every(sampleInterval, func() {
@@ -122,7 +123,8 @@ func main() {
 			}
 			humidity, err := bme280.Humidity()
 			if err != nil {
-				log.Fatalf("failed to read humidity from BME280: %s", err)
+				// was: Fatalf
+				log.Printf("failed to read humidity from BME280: %s", err)
 			}
 			rawPressurePa, err := bme280.Pressure()
 			if err != nil {
