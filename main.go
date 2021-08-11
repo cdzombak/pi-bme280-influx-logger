@@ -113,7 +113,7 @@ func main() {
 	influxWriteApi := influxClient.WriteAPIBlocking("", *influxBucket)
 
 	rpiAdaptor := raspi.NewAdaptor()
-	bme280 := i2c.NewBME280Driver(rpiAdaptor, i2c.WithAddress(0x76))
+	bme280 := i2c.NewBME280Driver(rpiAdaptor)
 
 	work := func() {
 		gobot.Every(sampleInterval, func() {
