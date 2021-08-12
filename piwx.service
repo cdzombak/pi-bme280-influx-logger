@@ -1,0 +1,13 @@
+[Unit]
+Description=PiWX Environment Logger to InfluxDB
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/pi-bme280-influx-logger -influx-server "http://goliath.dzhome:8086" -influx-bucket "dzhome" -sensor-name "outdoor" -log-readings -elevation-meters 289
+User=root
+Group=root
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target
