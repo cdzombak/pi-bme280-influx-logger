@@ -10,3 +10,5 @@ require (
 	golang.org/x/exp v0.0.0-20210729172720-737cce5152fc
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
+
+replace github.com/quhar/bme280 => github.com/cdzombak/bme280 v0.1.1-0.20210923144804-319f35fe7c01
